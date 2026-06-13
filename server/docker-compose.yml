@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  postgres-db:
+    image: ankane/pgvector:latest
+    container_name: bank_postgres
+    environment:
+      POSTGRES_USER: bank_admin
+      POSTGRES_PASSWORD: SecretBankPassword2026
+      POSTGRES_DB: banking_ai
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: always
+
+  ollama-service:
+    image: ollama/ollama:latest
+    container_name: bank_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_storage:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: always
+
+volumes:
+  pgdata:
+  ollama_storage:
