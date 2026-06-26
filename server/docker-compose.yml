@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: SecretBankPassword2026
       POSTGRES_DB: banking_ai
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     restart: always

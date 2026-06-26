@@ -3,15 +3,16 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "dev": "nodemon --exec tsx server.ts",
-    "build": "tsc",
-    "start": "node dist/server.js",
+    "dev": "node init && nodemon --exec tsx server.ts",
+    "build": "node init && tsc",
+    "start": "node init && node dist/server.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "multer": "^2.1.1",
     "nodemon": "^3.1.14",

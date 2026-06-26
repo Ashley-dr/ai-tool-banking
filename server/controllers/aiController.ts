@@ -112,17 +112,41 @@ export const queryAI = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
+    // Dynamic payload configuration matching based on your active .env URL configuration routing
+    const isNewEndpoint = OLLAMA_EMBEDDINGS_URL.endsWith("/api/embed");
+    const payloadBody = isNewEndpoint
+      ? { model: "nomic-embed-text", input: question }
+      : { model: "nomic-embed-text", prompt: question };
+
     const vectorRes = await fetch(OLLAMA_EMBEDDINGS_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "nomic-embed-text", prompt: question }),
+      body: JSON.stringify(payloadBody), 
     });
-    const { embedding } = (await vectorRes.json()) as OllamaEmbeddingResponse;
+
+    if (!vectorRes.ok) {
+      throw new Error(`Ollama embeddings returned status code ${vectorRes.status}`);
+    }
+
+    const rawOllamaData = await vectorRes.json() as any;
+    let embedding: number[] | undefined;
+
+    // Direct Extraction Layout Matrix Parsing
+    if (rawOllamaData && Array.isArray(rawOllamaData.embeddings) && rawOllamaData.embeddings.length > 0) {
+      embedding = rawOllamaData.embeddings[0];
+    } else if (rawOllamaData && Array.isArray(rawOllamaData.embedding) && rawOllamaData.embedding.length > 0) {
+      embedding = rawOllamaData.embedding;
+    }
+
+    if (!embedding || !Array.isArray(embedding) || embedding.length === 0) {
+      console.error("❌ Unexpected Ollama Payload Layout Structure:", rawOllamaData);
+      throw new Error("Ollama answered but failed to yield a populated vector matrix row array.");
+    }
 
     const closestMatches = await sequelize.query<DocumentChunkRow>(
       `
         SELECT content FROM document_chunks
-        ORDER BY embedding <=> :questionVector::vector LIMIT 8;
+        ORDER BY embedding::vector <=> :questionVector::vector LIMIT 12;
       `,
       {
         replacements: { questionVector: formatVector(embedding) },
@@ -134,16 +158,21 @@ export const queryAI = async (req: Request, res: Response): Promise<void> => {
       .map((match) => match.content)
       .join("\n\n");
 
+    const promptInstructions = `[OCR REPAIR ENGINE ACTIVE]\nYou are analyzing an official corporate document snippet that contains text character artifacts due to page scan blur. Deduce the meaning based on context (e.g. "Biring" means "Hiring", "Fosation" means "Position").\n\nCONTEXT:\n${documentationContext}\n\nQUESTION:\n${question}`;
+
     const aiResponse = await fetch(OLLAMA_GENERATE_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        // model: "mistral" || "llama3.2:3b",
-        model: "mistral",
-        prompt: `[PRIVATE MODE]\nAnswer the question using only the verified corporate files context provided below.\n\nCONTEXT:\n${documentationContext}\n\nQUESTION:\n${question}`,
+        model: "llama3.1:8b",
+        prompt: promptInstructions,
         stream: false,
       }),
     });
+
+    if (!aiResponse.ok) {
+      throw new Error(`Ollama generation returned status code ${aiResponse.status}`);
+    }
 
     const aiData = (await aiResponse.json()) as OllamaGenerateResponse;
     res.json({ answer: aiData.response });

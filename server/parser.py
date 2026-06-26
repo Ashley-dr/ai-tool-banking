@@ -15,7 +15,7 @@ import pdf2image
 import pandas as pd
 
 
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+pytesseract.pytesseract.tesseract_cmd = r'C:\Users\adrodriguez\AppData\Local\Programs\Tesseract-OCR\tesseract.exe'
 
 OLLAMA_URL = "http://localhost:11434/api/embeddings"
 
@@ -121,7 +121,7 @@ def parse_document(file_path):
         
         payload_data = []
         for chunk in chunks:
-            # Request semantic vector maps from the local Ollama container
+     
             res = requests.post(OLLAMA_URL, json={
                 "model": "nomic-embed-text",
                 "prompt": chunk
@@ -129,8 +129,12 @@ def parse_document(file_path):
             
             if res.status_code != 200:
                 raise Exception(f"Ollama connection error code: {res.status_code}")
-                
-            embedding = res.json().get("embedding")
+            
+            raw_res = res.json()
+            
+            embedding = raw_res.get("embedding") or raw_res.get("embeddings")
+            if isinstance(embedding, list) and len(embedding) > 0 and isinstance(embedding[0], list):
+                embedding = embedding[0]
             
             payload_data.append({
                 "content": chunk,
